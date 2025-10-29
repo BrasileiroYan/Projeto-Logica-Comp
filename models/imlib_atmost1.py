@@ -512,27 +512,43 @@ class IMLIB_ATMOST1:
         ]
 
         return normal_instance_binarized, opposite_instance_binarized
-
+    
+    #-------------------------------v alteração v----------------------------------
     def __aplicate_DNF_rules(self, normal_instance_binarized, opposite_instance_binarized):
         predict = 0
-        for rule_columns in self.__rules_columns:
-            for column in rule_columns:
-                if column < 0:
-                    if opposite_instance_binarized[abs(column) - 1] == 0:
-                        predict = 0
-                        break
+
+        for i, rule_columns in enumerate(self.__rules_columns):
+            is_atmost1 = self.__r(i) in self.__solver_solution  # verifica se a regra é AtMost1
+            rule_true = False
+
+            if not is_atmost1:  # regra Normal (conjunção)
+                rule_true = True
+                for column in rule_columns:
+                    if column < 0:
+                        if opposite_instance_binarized[abs(column) - 1] == 0:
+                            rule_true = False
+                            break
                     else:
-                        predict = 1
-                else:
-                    if normal_instance_binarized[abs(column) - 1] == 0:
-                        predict = 0
-                        break
+                        if normal_instance_binarized[column - 1] == 0:
+                            rule_true = False
+                            break
+            else:  # regra AtMost1
+                count_true = 0
+                for column in rule_columns:
+                    if column < 0:
+                        if opposite_instance_binarized[abs(column) - 1] == 1:
+                            count_true += 1
                     else:
-                        predict = 1
-            if predict == 1:
+                        if normal_instance_binarized[column - 1] == 1:
+                            count_true += 1
+                rule_true = count_true <= 1  # verdadeiro se no máximo 1 literal verdadeiro
+
+            if rule_true:
+                predict = 1
                 break
 
         return predict
+     #-------------------------------^ alteração ^----------------------------------
 
     def score(self, X_test = pd.DataFrame, y_test = pd.Series):
         if type(X_test) != pd.DataFrame or type(y_test) != pd.Series:
