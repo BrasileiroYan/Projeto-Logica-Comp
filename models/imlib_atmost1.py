@@ -257,7 +257,7 @@ class IMLIB_ATMOST1:
                 # caso Normal (r_i = 1)
                 if r_i == 1:
                     # z(i,w) é verdadeiro se e somente se todos os y(i,j,w) forem verdadeiros
-                    y_literals = [self._y(i, j, w) for j in range(self._max_size_each_rule)]
+                    y_literals = [self.__y(i, j, w) for j in range(self.__max_size_each_rule)]
 
                     # z -> y (parte positiva)
                     wcnf_formula.append([r_i, -self.__z(i, w)] + y_literals)
@@ -268,7 +268,7 @@ class IMLIB_ATMOST1:
                 # caso AtMost1 (r_i = 0)
                 else:
                     # z(i,w) é verdadeiro se e somente se no máximo 1 y(i,j,w) for verdadeiro
-                    y_literals = [self._y(i, j, w) for j in range(self._max_size_each_rule)]
+                    y_literals = [self.__y(i, j, w) for j in range(self.__max_size_each_rule)]
                     # Para cada par de literais, impede que ambos sejam verdadeiros
                     for j1 in range(len(y_literals)):
                         for j2 in range(j1 + 1, len(y_literals)):
@@ -324,13 +324,13 @@ class IMLIB_ATMOST1:
 
         x_literals = self.__get_x_literals(normal_features)
         p_literals = self.__get_p_literals(normal_features, X_norm)
-        r_literals = [self._r(i) for i in range(self._max_rule_set_size)]  # novos r_i
+        r_literals = [self.__r(i) for i in range(self.__max_rule_set_size)]  # novos r_i
 
         rules_features = [[] for _ in range(self.__max_rule_set_size)]
         rules_columns = [[] for _ in range(self.__max_rule_set_size)]
 
         for i in range(self.__max_rule_set_size):    # i ∈ {1, ..., m}
-            is_atmost1 = r_literals[i] in self.__solver_solution # Se r_i=1
+            is_atmost1 = r_literals[i] in self.__solver_solution  # Se r_i=1
             for j in range(self.__max_size_each_rule):  # j ∈ {1, ..., l}
                 for t in range(len(normal_features)):  # t ∈ Φ U {*}
                     if self.__x(i,j,t) in x_literals:
