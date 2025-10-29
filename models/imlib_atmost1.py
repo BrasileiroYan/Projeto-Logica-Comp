@@ -317,31 +317,44 @@ class IMLIB_ATMOST1:
 
     def __reset_literals(self):
         self.__literals = IDPool()
-
+     #-------------------------------v alteração v----------------------------------
     def __create_rules(self, X_norm):
         normal_features = self.__dataset_binarized.get_normal_features_label()
         opposite_features = self.__dataset_binarized.get_opposite_features_label()
 
         x_literals = self.__get_x_literals(normal_features)
         p_literals = self.__get_p_literals(normal_features, X_norm)
+        r_literals = [self._r(i) for i in range(self._max_rule_set_size)]  # novos r_i
 
         rules_features = [[] for _ in range(self.__max_rule_set_size)]
         rules_columns = [[] for _ in range(self.__max_rule_set_size)]
-        
+
         for i in range(self.__max_rule_set_size):    # i ∈ {1, ..., m}
+            is_atmost1 = r_literals[i] in self.__solver_solution # Se r_i=1
             for j in range(self.__max_size_each_rule):  # j ∈ {1, ..., l}
                 for t in range(len(normal_features)):  # t ∈ Φ U {*}
                     if self.__x(i,j,t) in x_literals:
                         if self.__p(i,j) in p_literals:
-                            rules_features[i].append(normal_features[t])
-                            rules_columns[i].append(t+1)
+                            feature = normal_features[t]
+                            column = t+1
                         else:
-                            rules_features[i].append(opposite_features[t])
-                            rules_columns[i].append(-(t+1))
+                            feature = opposite_features[t]
+                            column = -(t+1)
+
+                        # se regra for Normal, adiciona normalmente
+                        if not is_atmost1:
+                            rules_features[i].append(feature)
+                            rules_columns[i].append(column)
+
+                        # se regra for AtMost1, adiciona apenas 1 literal (primeiro ativo)
+                        else:
+                            if len(rules_features[i]) == 0:  # pega só o primeiro literal ativo
+                                rules_features[i].append(feature)
+                                rules_columns[i].append(column)
 
         self.__rules_features = rules_features
         self.__rules_columns = rules_columns
-    
+     #-------------------------------^ alteração ^----------------------------------
     def __get_x_literals(self, features):
         number_features = len(features)
         start = 0
