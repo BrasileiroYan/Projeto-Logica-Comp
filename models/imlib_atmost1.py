@@ -4,6 +4,8 @@ from pysat.formula import IDPool
 from pysat.formula import WCNF
 import numpy as np
 from pysat.examples.rc2 import RC2
+from pysat.card import CardEnc
+from pysat.card import EncType
 import time
 
 
@@ -250,29 +252,45 @@ class IMLIB_ATMOST1:
 
         #-------------------------------alteração----------------------------------
         # (7.10) (21)
+
         for i in range(self.__max_rule_set_size):
             for w in range(len(X_norm)):
                 r_i = self.__r(i)
+                z_iw = self.__z(i, w)
+                ys = [self.__y(i, j, w) for j in range(self.__max_size_each_rule)]
 
-                # caso Normal (r_i = 1)
-                if r_i == 1:
-                    # z(i,w) é verdadeiro se e somente se todos os y(i,j,w) forem verdadeiros
-                    y_literals = [self.__y(i, j, w) for j in range(self.__max_size_each_rule)]
+                # ===============================
+                # CASO NORMAL (r_i == 1)
+                # ===============================
+                # Se r_i = 1 → z <-> (y1 ∧ y2 ∧ ... ∧ yk)
+                clauses = []
+                clause = [-r_i, z_iw]  # (¬r ∨ z ∨ ¬y1 ∨ ¬y2 ...)
+                for yj in ys:
+                    clauses.append([-r_i, -z_iw, yj])  # (¬r ∨ ¬z ∨ yj)
+                    clause.append(-yj)
+                clauses.append(clause)
+                wcnf_formula.extend(clauses)
 
-                    # z -> y (parte positiva)
-                    wcnf_formula.append([r_i, -self.__z(i, w)] + y_literals)
+                # ===============================
+                # CASO ATMOST1 (r_i == 0) - Z ⟺ ATMOST1(Y's)
+                # ===============================
+                a = self.__literals.id(f'a_{i}_{w}')
 
-                    # y -> z (parte negativa)
-                    wcnf_formula.append([-r_i, -self.__z(i, w)] + [-y for y in y_literals])
+                # Implementa: (¬r ⟹ (a ⟺ AtMost1(y's)))
 
-                # caso AtMost1 (r_i = 0)
-                else:
-                    # z(i,w) é verdadeiro se e somente se no máximo 1 y(i,j,w) for verdadeiro
-                    y_literals = [self.__y(i, j, w) for j in range(self.__max_size_each_rule)]
-                    # Para cada par de literais, impede que ambos sejam verdadeiros
-                    for j1 in range(len(y_literals)):
-                        for j2 in range(j1 + 1, len(y_literals)):
-                            wcnf_formula.append([-r_i, -y_literals[j1], -y_literals[j2]])
+                # (1.1) Equivalente a: (¬r ⟹ (AtMost1 ⟹ a))
+                for j in range(len(ys)):
+                    for k in range(j + 1, len(ys)):
+                        wcnf_formula.append([r_i, ys[j], ys[k], a])
+
+                # (1.2) Equivalente a: (¬r ⟹ (a ⟹ AtMost1))
+                for j in range(len(ys)):
+                    for k in range(j + 1, len(ys)):
+                        wcnf_formula.append([r_i, -a, -ys[j], -ys[k]])
+
+                # (2) Condicionar z ↔ a a ¬r_i
+                wcnf_formula.append([r_i, -z_iw, a])
+                wcnf_formula.append([r_i, -a, z_iw]) 
 
         #-------------------------------alteração----------------------------------
 
@@ -329,11 +347,16 @@ class IMLIB_ATMOST1:
         rules_features = [[] for _ in range(self.__max_rule_set_size)]
         rules_columns = [[] for _ in range(self.__max_rule_set_size)]
 
-        for i in range(self.__max_rule_set_size):    # i ∈ {1, ..., m}
-            is_atmost1 = r_literals[i] in self.__solver_solution  # Se r_i=1
-            for j in range(self.__max_size_each_rule):  # j ∈ {1, ..., l}
-                for t in range(len(normal_features)):  # t ∈ Φ U {*}
+        for i in range(self.__max_rule_set_size): # i ∈ {1, ..., m}
+            # is_atmost1 ainda é calculado, mas SÓ PARA USO NA FUNÇÃO PREDICT
+            is_atmost1 = r_literals[i] not in self.__solver_solution 
+
+            for j in range(self.__max_size_each_rule): # j ∈ {1, ..., l}
+                for t in range(len(normal_features)): # t ∈ Φ U {*}
+
+                    # SE O LITERAL FOI ESCOLHIDO PELO MAXSAT
                     if self.__x(i,j,t) in x_literals:
+                    # Determina o literal e o sinal (coluna)
                         if self.__p(i,j) in p_literals:
                             feature = normal_features[t]
                             column = t+1
@@ -341,16 +364,10 @@ class IMLIB_ATMOST1:
                             feature = opposite_features[t]
                             column = -(t+1)
 
-                        # se regra for Normal, adiciona normalmente
-                        if not is_atmost1:
-                            rules_features[i].append(feature)
-                            rules_columns[i].append(column)
-
-                        # se regra for AtMost1, adiciona apenas 1 literal (primeiro ativo)
-                        else:
-                            if len(rules_features[i]) == 0:  # pega só o primeiro literal ativo
-                                rules_features[i].append(feature)
-                                rules_columns[i].append(column)
+                        # ADICIONA O LITERAL: Esta lógica é válida para
+                        # AMBOS os tipos de regra (Normal e AtMost1)
+                        rules_features[i].append(feature)
+                        rules_columns[i].append(column)
 
         self.__rules_features = rules_features
         self.__rules_columns = rules_columns
@@ -518,7 +535,7 @@ class IMLIB_ATMOST1:
         predict = 0
 
         for i, rule_columns in enumerate(self.__rules_columns):
-            is_atmost1 = self.__r(i) in self.__solver_solution  # verifica se a regra é AtMost1
+            is_atmost1 = self.__r(i) not in self.__solver_solution # verifica se a regra é AtMost1
             rule_true = False
 
             if not is_atmost1:  # regra Normal (conjunção)
