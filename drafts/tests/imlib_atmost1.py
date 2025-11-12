@@ -12,9 +12,9 @@ from tqdm import tqdm
 # training configurations
 database_name = 'mushroom'  # alterar conforme o dataset
 categorical_columns_index = list(range(22))  # exemplo
-number_lines_per_partition = [16]
+number_lines_per_partition = [8]
 max_rule_set_sizes = [2]
-rules_accuracy_weights = [100000]
+rules_accuracy_weights = [10]
 number_quantiles_ordinal_columns = 5
 balance_instances = True
 balance_instances_seed = 21

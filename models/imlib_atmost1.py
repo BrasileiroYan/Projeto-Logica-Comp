@@ -4,8 +4,6 @@ from pysat.formula import IDPool
 from pysat.formula import WCNF
 import numpy as np
 from pysat.examples.rc2 import RC2
-from pysat.card import CardEnc
-from pysat.card import EncType
 import time
 
 
@@ -157,7 +155,7 @@ class IMLIB_ATMOST1:
                 X_normal_partition,
                 y_partition
             )
-
+            
             # TODO: add a new MaxSAT solver option
 
             # WARNING: this line is used just to debug --------------------------------
@@ -262,36 +260,32 @@ class IMLIB_ATMOST1:
                 # ===============================
                 # CASO NORMAL (r_i == 1)
                 # ===============================
-                # Se r_i = 1 → z <-> (y1 ∧ y2 ∧ ... ∧ yk)
                 clauses = []
-                clause = [-r_i, z_iw]  # (¬r ∨ z ∨ ¬y1 ∨ ¬y2 ...)
+                clause = [-r_i, z_iw]
                 for yj in ys:
-                    clauses.append([-r_i, -z_iw, yj])  # (¬r ∨ ¬z ∨ yj)
+                    clauses.append([-r_i, -z_iw, yj])
                     clause.append(-yj)
                 clauses.append(clause)
                 wcnf_formula.extend(clauses)
 
                 # ===============================
-                # CASO ATMOST1 (r_i == 0) - Z ⟺ ATMOST1(Y's)
+                # CASO ATMOST1 (r_i == 0) - Z ⟺ AtMost1(Y's)
                 # ===============================
-                a = self.__literals.id(f'a_{i}_{w}')
 
-                # Implementa: (¬r ⟹ (a ⟺ AtMost1(y's)))
-
-                # (1.1) Equivalente a: (¬r ⟹ (AtMost1 ⟹ a))
+                # (¬r ⇒ (z ⇒ AtMost1))  → (r ∨ ¬z ∨ ¬y_j ∨ ¬y_k)
                 for j in range(len(ys)):
                     for k in range(j + 1, len(ys)):
-                        wcnf_formula.append([r_i, ys[j], ys[k], a])
+                        wcnf_formula.append([r_i, -z_iw, -ys[j], -ys[k]])
 
-                # (1.2) Equivalente a: (¬r ⟹ (a ⟹ AtMost1))
+                # (¬r ⇒ (AtMost1 ⇒ z)) → (r ∨ z ∨ y_j ∨ y_k)
                 for j in range(len(ys)):
                     for k in range(j + 1, len(ys)):
-                        wcnf_formula.append([r_i, -a, -ys[j], -ys[k]])
+                        wcnf_formula.append([r_i, z_iw, ys[j], ys[k]])
 
-                # (2) Condicionar z ↔ a a ¬r_i
-                wcnf_formula.append([r_i, -z_iw, a])
-                wcnf_formula.append([r_i, -a, z_iw]) 
-
+                # garantir propagação quando há apenas 1 verdadeiro
+                # (¬r ⇒ (¬y_j ∨ z)) e (¬r ⇒ (¬y_k ∨ z))
+                for yj in ys:
+                    wcnf_formula.append([r_i, z_iw, -yj])
         #-------------------------------alteração----------------------------------
 
         # (7.11) (22)
@@ -335,43 +329,31 @@ class IMLIB_ATMOST1:
 
     def __reset_literals(self):
         self.__literals = IDPool()
-     #-------------------------------v alteração v----------------------------------
+
     def __create_rules(self, X_norm):
         normal_features = self.__dataset_binarized.get_normal_features_label()
         opposite_features = self.__dataset_binarized.get_opposite_features_label()
 
         x_literals = self.__get_x_literals(normal_features)
         p_literals = self.__get_p_literals(normal_features, X_norm)
-        r_literals = [self.__r(i) for i in range(self.__max_rule_set_size)]  # novos r_i
 
         rules_features = [[] for _ in range(self.__max_rule_set_size)]
         rules_columns = [[] for _ in range(self.__max_rule_set_size)]
-
-        for i in range(self.__max_rule_set_size): # i ∈ {1, ..., m}
-            # is_atmost1 ainda é calculado, mas SÓ PARA USO NA FUNÇÃO PREDICT
-            is_atmost1 = r_literals[i] not in self.__solver_solution 
-
-            for j in range(self.__max_size_each_rule): # j ∈ {1, ..., l}
-                for t in range(len(normal_features)): # t ∈ Φ U {*}
-
-                    # SE O LITERAL FOI ESCOLHIDO PELO MAXSAT
+        
+        for i in range(self.__max_rule_set_size):    # i ∈ {1, ..., m}
+            for j in range(self.__max_size_each_rule):  # j ∈ {1, ..., l}
+                for t in range(len(normal_features)):  # t ∈ Φ U {*}
                     if self.__x(i,j,t) in x_literals:
-                    # Determina o literal e o sinal (coluna)
                         if self.__p(i,j) in p_literals:
-                            feature = normal_features[t]
-                            column = t+1
+                            rules_features[i].append(normal_features[t])
+                            rules_columns[i].append(t+1)
                         else:
-                            feature = opposite_features[t]
-                            column = -(t+1)
-
-                        # ADICIONA O LITERAL: Esta lógica é válida para
-                        # AMBOS os tipos de regra (Normal e AtMost1)
-                        rules_features[i].append(feature)
-                        rules_columns[i].append(column)
+                            rules_features[i].append(opposite_features[t])
+                            rules_columns[i].append(-(t+1))
 
         self.__rules_features = rules_features
         self.__rules_columns = rules_columns
-     #-------------------------------^ alteração ^----------------------------------
+
     def __get_x_literals(self, features):
         number_features = len(features)
         start = 0
@@ -530,42 +512,26 @@ class IMLIB_ATMOST1:
 
         return normal_instance_binarized, opposite_instance_binarized
     
-    #-------------------------------v alteração v----------------------------------
     def __aplicate_DNF_rules(self, normal_instance_binarized, opposite_instance_binarized):
         predict = 0
-
-        for i, rule_columns in enumerate(self.__rules_columns):
-            is_atmost1 = self.__r(i) not in self.__solver_solution # verifica se a regra é AtMost1
-            rule_true = False
-
-            if not is_atmost1:  # regra Normal (conjunção)
-                rule_true = True
-                for column in rule_columns:
-                    if column < 0:
-                        if opposite_instance_binarized[abs(column) - 1] == 0:
-                            rule_true = False
-                            break
+        for rule_columns in self.__rules_columns:
+            for column in rule_columns:
+                if column < 0:
+                    if opposite_instance_binarized[abs(column) - 1] == 0:
+                        predict = 0
+                        break
                     else:
-                        if normal_instance_binarized[column - 1] == 0:
-                            rule_true = False
-                            break
-            else:  # regra AtMost1
-                count_true = 0
-                for column in rule_columns:
-                    if column < 0:
-                        if opposite_instance_binarized[abs(column) - 1] == 1:
-                            count_true += 1
+                        predict = 1
+                else:
+                    if normal_instance_binarized[abs(column) - 1] == 0:
+                        predict = 0
+                        break
                     else:
-                        if normal_instance_binarized[column - 1] == 1:
-                            count_true += 1
-                rule_true = count_true <= 1  # verdadeiro se no máximo 1 literal verdadeiro
-
-            if rule_true:
-                predict = 1
+                        predict = 1
+            if predict == 1:
                 break
 
         return predict
-     #-------------------------------^ alteração ^----------------------------------
 
     def score(self, X_test = pd.DataFrame, y_test = pd.Series):
         if type(X_test) != pd.DataFrame or type(y_test) != pd.Series:
