@@ -272,18 +272,15 @@ class IMLIB_ATMOST1:
                 # CASO ATMOST1 (r_i == 0) - Z ⟺ AtMost1(Y's)
                 # ===============================
 
-                # (¬r ⇒ (z ⇒ AtMost1))  → (r ∨ ¬z ∨ ¬y_j ∨ ¬y_k)
+                # 1. z ⇒ AtMost1
                 for j in range(len(ys)):
                     for k in range(j + 1, len(ys)):
                         wcnf_formula.append([r_i, -z_iw, -ys[j], -ys[k]])
 
-                # (¬r ⇒ (AtMost1 ⇒ z)) → (r ∨ z ∨ y_j ∨ y_k)
-                for j in range(len(ys)):
-                    for k in range(j + 1, len(ys)):
-                        wcnf_formula.append([r_i, z_iw, ys[j], ys[k]])
+                # 2a. Se todos ys=0 → z
+                wcnf_formula.append([r_i, z_iw] + ys)
 
-                # garantir propagação quando há apenas 1 verdadeiro
-                # (¬r ⇒ (¬y_j ∨ z)) e (¬r ⇒ (¬y_k ∨ z))
+                # 2b. Se algum yj=1 → z
                 for yj in ys:
                     wcnf_formula.append([r_i, z_iw, -yj])
         #-------------------------------alteração----------------------------------
