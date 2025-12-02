@@ -10,21 +10,22 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 # training configurations
-database_name = 'lung_cancer'
-categorical_columns_index = [0,1]
-number_lines_per_partition = [32]
+database_name = 'iris'  # alterar conforme o dataset
+categorical_columns_index = list(range(22))  # exemplo
+number_lines_per_partition = [8]
 max_rule_set_sizes = [2]
-rules_accuracy_weights = [50]
+rules_accuracy_weights = [10]
 number_quantiles_ordinal_columns = 5
 balance_instances = True
 balance_instances_seed = 21
-number_realizations = 50
+number_realizations = 10
 
 database_path = f'./databases/{database_name}.csv'
 
 imlib_results_path = f'./drafts/tests/imlib_vs_imlib_atmost1/{database_name}_imlib.csv'
 imlib_atmost1_results_path = f'./drafts/tests/imlib_vs_imlib_atmost1/{database_name}_imlib_atmost1.csv'
 
+# cria a pasta para salvar os resultados, se não existir
 os.makedirs('./drafts/tests/imlib_vs_imlib_atmost1', exist_ok=True)
 
 # import dataset
@@ -32,12 +33,8 @@ Xy = pd.read_csv(database_path)
 X = Xy.drop(['Class'], axis=1)
 y = Xy['Class']
 
-# adicionamos colunas novas aqui:
-columns = [
-    'Configuration', 'Rules size', 'Rule set size', 'Sum rules size',
-    'Larger rule size', 'Train accuracy', 'Test accuracy', 'Training time'
-]
-
+# dataframes que vão armazenar os resultados
+columns = ['Configuration', 'Rules size', 'Rule set size', 'Sum rules size', 'Larger rule size', 'Accuracy', 'Training time']
 imlib_results_df = pd.DataFrame([], columns=columns)
 imlib_atmost1_results_df = pd.DataFrame([], columns=columns)
 
@@ -45,7 +42,6 @@ for lpp in tqdm(number_lines_per_partition, desc='lpp loop'):
     for mrss in tqdm(max_rule_set_sizes, desc='mrss loop'):
         for raw in tqdm(rules_accuracy_weights, desc='raw loop'):
             for r in tqdm(range(number_realizations), desc='realizations'):
-                
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
                 # inicializa os modelos
@@ -73,34 +69,24 @@ for lpp in tqdm(number_lines_per_partition, desc='lpp loop'):
                 imlib_model.fit(X_train, y_train)
                 imlib_atmost1_model.fit(X_train, y_train)
 
-                # calcula acurácias
-                imlib_train_acc = imlib_model.score(X_train, y_train)
-                imlib_test_acc = imlib_model.score(X_test, y_test)
-
-                i_imlib_train_acc = imlib_atmost1_model.score(X_train, y_train)
-                i_imlib_test_acc = imlib_atmost1_model.score(X_test, y_test)
-
-                # salva resultados do IMLIB
-                imlib_result = pd.DataFrame([[
+                # armazena resultados
+                imlib_result = pd.DataFrame([[ 
                     f'lpp: {lpp} | mrss: {mrss} | raw: {raw}',
                     imlib_model.get_rules_size(),
                     imlib_model.get_rule_set_size(),
                     imlib_model.get_sum_rules_size(),
                     imlib_model.get_larger_rule_size(),
-                    imlib_train_acc,
-                    imlib_test_acc,
+                    imlib_model.score(X_test, y_test),
                     imlib_model.get_total_time_solver_solutions()
                 ]], columns=columns)
 
-                # salva resultados do IMLIB_ATMOST1
-                imlib_atmost1_result = pd.DataFrame([[
+                imlib_atmost1_result = pd.DataFrame([[ 
                     f'lpp: {lpp} | mrss: {mrss} | raw: {raw}',
                     imlib_atmost1_model.get_rules_size(),
                     imlib_atmost1_model.get_rule_set_size(),
                     imlib_atmost1_model.get_sum_rules_size(),
                     imlib_atmost1_model.get_larger_rule_size(),
-                    i_imlib_train_acc,
-                    i_imlib_test_acc,
+                    imlib_atmost1_model.score(X_test, y_test),
                     imlib_atmost1_model.get_total_time_solver_solutions()
                 ]], columns=columns)
 

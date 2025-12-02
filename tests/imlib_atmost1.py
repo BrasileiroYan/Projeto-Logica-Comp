@@ -10,15 +10,15 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 # training configurations
-database_name = 'iris'  # alterar conforme o dataset
-categorical_columns_index = [[]]  
+database_name = 'mushroom'  # alterar conforme o dataset
+categorical_columns_index = list(range(22))  # exemplo
 number_lines_per_partition = [8]
 max_rule_set_sizes = [2]
 rules_accuracy_weights = [10]
 number_quantiles_ordinal_columns = 5
 balance_instances = True
 balance_instances_seed = 21
-number_realizations = 50
+number_realizations = 10
 
 database_path = f'./databases/{database_name}.csv'
 
